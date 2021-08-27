@@ -5,20 +5,27 @@ use crate::{
     CredentialRequestFragment, CredentialSchema, EntityCredential, OfferId, PresentationManifest,
     ProfileChangeEvent, ProfileIdentifier, ProofRequestId, TrustPolicy,
 };
-use ockam_core::compat::{vec::Vec, string::String};
+use ockam_core::compat::{boxed::Box, string::String, vec::Vec};
 use ockam_core::{Address, Result, Route};
 use ockam_vault_core::{PublicKey, Secret};
 use signature_bls::SecretKey;
 
 pub type AuthenticationProof = Vec<u8>;
 
+use ockam_core::async_trait::async_trait;
+#[async_trait]
 /// Identity
 pub trait Identity: Send + 'static {
     /// Return unique [`Profile`] identifier, which is equal to sha256 of the root public key
     fn identifier(&self) -> Result<ProfileIdentifier>;
+    // Return unique [`Profile`] identifier, which is equal to sha256 of the root public key
+    async fn async_identifier(&self) -> Result<ProfileIdentifier>;
 
     /// Create new key.
-    fn create_key<S: Into<String>>(&mut self, label: S) -> Result<()>;
+    fn create_key<S: Into<String> + Send + 'static>(&mut self, label: S) -> Result<()>;
+
+    /// Create new key.
+    async fn async_create_key<S: Into<String> + Send + 'static>(&mut self, label: S) -> Result<()>;
 
     /// Rotate existing key.
     fn rotate_profile_key(&mut self) -> Result<()>;
@@ -78,6 +85,7 @@ pub trait Identity: Send + 'static {
     ) -> Result<bool>;
 }
 
+#[async_trait]
 pub trait SecureChannels {
     fn create_secure_channel_listener(
         &mut self,
@@ -88,6 +96,18 @@ pub trait SecureChannels {
     fn create_secure_channel(
         &mut self,
         route: impl Into<Route> + Send,
+        trust_policy: impl TrustPolicy,
+    ) -> Result<Address>;
+
+    async fn async_create_secure_channel_listener<A: Into<Address> + Send>(
+        &mut self,
+        address: A,
+        trust_policy: impl TrustPolicy,
+    ) -> Result<()>;
+
+    async fn async_create_secure_channel<R: Into<Route> + Send>(
+        &mut self,
+        route: R,
         trust_policy: impl TrustPolicy,
     ) -> Result<Address>;
 }

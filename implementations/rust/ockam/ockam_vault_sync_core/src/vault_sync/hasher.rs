@@ -1,8 +1,11 @@
 use crate::{VaultRequestMessage, VaultResponseMessage, VaultSync, VaultSyncCoreError};
+use ockam_core::compat::boxed::Box;
 use ockam_core::Result;
 use ockam_node::block_future;
 use ockam_vault_core::{Hasher, Secret, SecretAttributes, SmallBuffer};
 
+use async_trait::async_trait;
+#[async_trait]
 impl Hasher for VaultSync {
     fn sha256(&mut self, data: &[u8]) -> Result<[u8; 32]> {
         block_future(&self.ctx.runtime(), async move {
@@ -17,6 +20,19 @@ impl Hasher for VaultSync {
                 Err(VaultSyncCoreError::InvalidResponseType.into())
             }
         })
+    }
+
+    async fn async_sha256(&mut self, data: &[u8]) -> Result<[u8; 32]> {
+        self.send_message(VaultRequestMessage::Sha256 { data: data.into() })
+            .await?;
+
+        let resp = self.receive_message().await?;
+
+        if let VaultResponseMessage::Sha256(s) = resp {
+            Ok(s)
+        } else {
+            Err(VaultSyncCoreError::InvalidResponseType.into())
+        }
     }
 
     fn hkdf_sha256(

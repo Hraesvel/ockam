@@ -42,11 +42,12 @@ impl Worker for EntityWorker {
         let req = msg.body();
         match req {
             CreateProfile(vault_address) => {
-                let vault_sync = VaultSync::create_with_worker(ctx, &vault_address)
+                let vault_sync = VaultSync::async_create_with_worker(ctx, &vault_address).await
                     .expect("couldn't create profile vault");
 
                 let profile_state =
-                    ProfileState::create(vault_sync).expect("failed to create ProfileState");
+                    ProfileState::async_create(vault_sync).await
+                    .expect("failed to create ProfileState");
 
                 let id = profile_state
                     .identifier()
@@ -61,7 +62,7 @@ impl Worker for EntityWorker {
             CreateKey(profile_id, label) => {
                 let profile = self.profile(&profile_id);
 
-                Identity::create_key(profile, label)
+                Identity::async_create_key(profile, label).await
             }
             RotateKey(profile_id) => {
                 let profile = self.profile(&profile_id);
@@ -164,7 +165,7 @@ impl Worker for EntityWorker {
                     ctx.new_context(Address::random(0)).await?,
                     trust_policy_address,
                 ));
-                let vault_address = self.profile(&profile_id).vault().address();
+                let vault_address = self.profile(&profile_id).async_vault().await.address();
                 let handle = Handle::new(ctx.new_context(Address::random(0)).await?, ctx.address());
                 let profile = Profile::new(profile_id, handle);
                 SecureChannelTrait::create_secure_channel_listener_async(
@@ -182,7 +183,7 @@ impl Worker for EntityWorker {
                     ctx.new_context(Address::random(0)).await?,
                     trust_policy_address,
                 ));
-                let vault_address = self.profile(&profile_id).vault().address();
+                let vault_address = self.profile(&profile_id).async_vault().await.address();
                 let handle = Handle::new(ctx.new_context(Address::random(0)).await?, ctx.address());
                 let profile = Profile::new(profile_id.clone(), handle);
 

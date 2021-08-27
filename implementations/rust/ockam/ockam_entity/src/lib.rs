@@ -49,17 +49,11 @@ pub struct Handle {
     address: Address,
 }
 
+// TODO a bit expensive for something called clone?
 impl Clone for Handle {
     fn clone(&self) -> Self {
         block_future(&self.ctx.runtime(), async move {
-            Handle {
-                ctx: self
-                    .ctx
-                    .new_context(Address::random(0))
-                    .await
-                    .expect("new_context failed"),
-                address: self.address.clone(),
-            }
+            self.async_clone().await
         })
     }
 }
@@ -67,6 +61,17 @@ impl Clone for Handle {
 impl Handle {
     pub fn new(ctx: Context, address: Address) -> Self {
         Handle { ctx, address }
+    }
+
+    async fn async_clone(&self) -> Handle {
+        Handle {
+            ctx: self
+                .ctx
+                .new_context(Address::random(0))
+                .await
+                .expect("new_context failed"),
+            address: self.address.clone(),
+        }
     }
 
     pub async fn async_cast<M: Message + Send + 'static>(&self, msg: M) -> Result<()> {

@@ -1,8 +1,11 @@
 use crate::software_vault::SoftwareVault;
 use crate::VaultError;
+use ockam_core::compat::boxed::Box;
 use ockam_core::hex::encode;
 use ockam_vault_core::{Hasher, KeyId, KeyIdVault, PublicKey, Secret};
 
+use ockam_core::async_trait::async_trait;
+#[async_trait]
 impl KeyIdVault for SoftwareVault {
     fn get_secret_by_key_id(&mut self, key_id: &str) -> ockam_core::Result<Secret> {
         let index = self
@@ -26,6 +29,14 @@ impl KeyIdVault for SoftwareVault {
         public_key: &PublicKey,
     ) -> ockam_core::Result<KeyId> {
         let key_id = self.sha256(public_key.as_ref())?;
+        Ok(encode(key_id))
+    }
+
+    async fn async_compute_key_id_for_public_key(
+        &mut self,
+        public_key: &PublicKey,
+    ) -> ockam_core::Result<KeyId> {
+        let key_id = self.async_sha256(public_key.as_ref()).await?;
         Ok(encode(key_id))
     }
 }

@@ -26,7 +26,7 @@ use crate::{
     ProfileChangeEvent, ProfileIdentifier, ProofRequestId, SecureChannels, SigningPublicKey,
     TrustPolicy,
 };
-use ockam_core::compat::{vec::Vec, string::String};
+use ockam_core::compat::{boxed::Box, string::String, vec::Vec};
 use ockam_core::{Address, Result, Route};
 use ockam_vault::{PublicKey, Secret};
 use signature_bls::SecretKey;
@@ -47,6 +47,18 @@ impl Profile {
     pub fn new<I: Into<ProfileIdentifier>>(id: I, handle: Handle) -> Self {
         let id = id.into();
         Profile { id, handle }
+    }
+
+    pub async fn async_clone(&self) -> Profile {
+        Profile {
+            id: self.id.clone(),
+            handle: self.handle.async_clone().await
+        }
+    }
+
+    pub async fn async_entity(&self) -> Entity {
+        //Entity::async_from(self.async_clone().await).await
+        Entity::new(self.handle.async_clone().await, Some(self.id.clone()))
     }
 
     pub fn entity(&self) -> Entity {
@@ -73,13 +85,22 @@ impl Profile {
     pub const CURRENT_CHANGE_VERSION: u8 = 1;
 }
 
+#[async_trait]
 impl Identity for Profile {
     fn identifier(&self) -> Result<ProfileIdentifier> {
         self.entity().identifier()
     }
 
-    fn create_key<S: Into<String>>(&mut self, label: S) -> Result<()> {
+    async fn async_identifier(&self) -> Result<ProfileIdentifier> {
+        self.async_entity().await.async_identifier().await
+    }
+
+    fn create_key<S: Into<String> + Send + 'static>(&mut self, label: S) -> Result<()> {
         self.entity().create_key(label)
+    }
+
+    async fn async_create_key<S: Into<String> + Send + 'static>(&mut self, label: S) -> Result<()> {
+        self.entity().async_create_key(label).await
     }
 
     fn rotate_profile_key(&mut self) -> Result<()> {
@@ -159,6 +180,8 @@ impl Identity for Profile {
     }
 }
 
+use async_trait::async_trait;
+#[async_trait]
 impl SecureChannels for Profile {
     fn create_secure_channel_listener(
         &mut self,
@@ -175,6 +198,29 @@ impl SecureChannels for Profile {
         trust_policy: impl TrustPolicy,
     ) -> Result<Address> {
         self.entity().create_secure_channel(route, trust_policy)
+    }
+
+    async fn async_create_secure_channel_listener<A>(
+        &mut self,
+        address: A,
+        trust_policy: impl TrustPolicy,
+    ) -> Result<()>
+    where
+        A: Into<Address> + Send
+    {
+        self.entity()
+            .async_create_secure_channel_listener(address, trust_policy).await
+    }
+
+    async fn async_create_secure_channel<R>(
+        &mut self,
+        route: R,
+        trust_policy: impl TrustPolicy,
+    ) -> Result<Address>
+    where
+        R: Into<Route> + Send
+    {
+        self.entity().async_create_secure_channel(route, trust_policy).await
     }
 }
 

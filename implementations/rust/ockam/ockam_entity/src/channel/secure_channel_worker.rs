@@ -88,7 +88,7 @@ impl<I: Identity, T: TrustPolicy> SecureChannelWorker<I, T> {
         route: Route,
         identity: I,
         trust_policy: T,
-        vault: impl XXVault + Sync,
+        vault: impl XXVault + Sync + ockam_core::traits::AsyncClone,
     ) -> Result<Address> {
         let child_address = Address::random(0);
         let mut child_ctx = ctx.new_context(child_address.clone()).await?;
@@ -99,7 +99,7 @@ impl<I: Identity, T: TrustPolicy> SecureChannelWorker<I, T> {
         let self_local_address: Address = random();
         let self_remote_address: Address = random();
 
-        let initiator = XXNewKeyExchanger::new(vault.clone()).initiator()?;
+        let initiator = XXNewKeyExchanger::new(vault.async_clone().await).initiator()?;
         // Create regular secure channel and set self address as first responder
         let temp_ctx = ctx.new_context(Address::random(0)).await?;
         let self_remote_address_clone = self_remote_address.clone();

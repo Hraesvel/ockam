@@ -30,15 +30,15 @@ impl<T: TrustPolicy, P: Identity + Clone, V: XXVault + Sync> ProfileChannelListe
 }
 
 #[ockam_core::worker]
-impl<T: TrustPolicy, P: Identity + Clone, V: XXVault + Sync> Worker
+impl<T: TrustPolicy, P: Identity + Clone, V: XXVault + ockam_core::traits::AsyncClone + Sync> Worker
     for ProfileChannelListener<T, P, V>
 {
     type Message = CreateResponderChannelMessage;
     type Context = Context;
 
     async fn initialize(&mut self, ctx: &mut Self::Context) -> Result<()> {
-        let new_key_exchanger = XXNewKeyExchanger::new(self.vault.clone());
-        let vault = self.vault.clone();
+        let new_key_exchanger = XXNewKeyExchanger::new(self.vault.async_clone().await);
+        let vault = self.vault.async_clone().await;
         SecureChannel::create_listener_extended(
             ctx,
             self.listener_address.clone(),

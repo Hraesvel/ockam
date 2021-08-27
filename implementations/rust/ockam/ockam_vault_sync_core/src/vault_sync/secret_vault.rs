@@ -1,8 +1,11 @@
 use crate::{VaultRequestMessage, VaultResponseMessage, VaultSync, VaultSyncCoreError};
+use ockam_core::compat::boxed::Box;
 use ockam_core::Result;
 use ockam_node::block_future;
 use ockam_vault_core::{PublicKey, Secret, SecretAttributes, SecretKey, SecretVault};
 
+use ockam_core::async_trait::async_trait;
+#[async_trait]
 impl SecretVault for VaultSync {
     fn secret_generate(&mut self, attributes: SecretAttributes) -> Result<Secret> {
         block_future(&self.ctx.runtime(), async move {
@@ -17,6 +20,19 @@ impl SecretVault for VaultSync {
                 Err(VaultSyncCoreError::InvalidResponseType.into())
             }
         })
+    }
+
+    async fn async_secret_generate(&mut self, attributes: SecretAttributes) -> Result<Secret> {
+        self.send_message(VaultRequestMessage::SecretGenerate { attributes })
+            .await?;
+
+        let resp = self.receive_message().await?;
+
+        if let VaultResponseMessage::SecretGenerate(s) = resp {
+            Ok(s)
+        } else {
+            Err(VaultSyncCoreError::InvalidResponseType.into())
+        }
     }
 
     fn secret_import(&mut self, secret: &[u8], attributes: SecretAttributes) -> Result<Secret> {
@@ -86,6 +102,21 @@ impl SecretVault for VaultSync {
                 Err(VaultSyncCoreError::InvalidResponseType.into())
             }
         })
+    }
+
+    async fn async_secret_public_key_get(&mut self, context: Secret) -> Result<PublicKey> {
+        self.send_message(VaultRequestMessage::SecretPublicKeyGet {
+            context: context.clone(),
+        })
+        .await?;
+
+        let resp = self.receive_message().await?;
+
+        if let VaultResponseMessage::SecretPublicKeyGet(s) = resp {
+            Ok(s)
+        } else {
+            Err(VaultSyncCoreError::InvalidResponseType.into())
+        }
     }
 
     fn secret_destroy(&mut self, context: Secret) -> Result<()> {

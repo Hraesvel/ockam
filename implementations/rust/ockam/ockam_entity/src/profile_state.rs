@@ -1,4 +1,4 @@
-use ockam_core::compat::{vec::Vec, string::{String, ToString}};
+use ockam_core::compat::{boxed::Box, string::{String, ToString}, vec::Vec};
 use ockam_core::{allow, deny, Result};
 use ockam_vault::{KeyIdVault, PublicKey, Secret, SecretAttributes};
 use ockam_vault_sync_core::VaultSync;
@@ -18,6 +18,7 @@ use crate::{
     ProfileVault, ProofBytes, ProofRequestId, SigningPublicKey,
 };
 use core::convert::TryInto;
+use ockam_core::traits::AsyncClone;
 use ockam_core::compat::collections::{HashMap, HashSet};
 use ockam_vault_core::{SecretPersistence, SecretType, SecretVault, CURVE25519_SECRET_LENGTH};
 use sha2::digest::{generic_array::GenericArray, Digest, FixedOutput};
@@ -67,14 +68,21 @@ impl ProfileState {
     pub(crate) fn change_history(&self) -> &ProfileChangeHistory {
         &self.change_history
     }
+
     /// Return clone of Vault
     pub fn vault(&self) -> VaultSync {
         self.vault.clone()
     }
 
+    /// Return clone of Vault
+    pub async fn async_vault(&self) -> VaultSync {
+        self.vault.async_clone().await
+    }
+
     /// Create ProfileState
-    pub(crate) fn create(mut vault: VaultSync) -> Result<Self> {
-        let initial_event_id = EventIdentifier::initial(vault.clone());
+    pub(crate) async fn async_create(mut vault: VaultSync) -> Result<Self> {
+        let hasher = vault.async_start_another().await.unwrap();
+        let initial_event_id = EventIdentifier::async_initial(hasher).await;
 
         let key_attribs = KeyAttributes::with_attributes(
             Profile::PROFILE_UPDATE.to_string(),
@@ -85,20 +93,20 @@ impl ProfileState {
             )),
         );
 
-        let create_key_event = Self::create_key_static(
+        let create_key_event = Self::async_create_key_static(
             initial_event_id,
             key_attribs.clone(),
             ProfileEventAttributes::new(),
             None,
             &mut vault,
-        )?;
+        ).await?;
 
         let create_key_change =
             ProfileChangeHistory::find_key_change_in_event(&create_key_event, &key_attribs)
                 .ok_or(InvalidInternalState)?;
 
         let public_key = ProfileChangeHistory::get_change_public_key(&create_key_change)?;
-        let public_key_id = vault.compute_key_id_for_public_key(&public_key)?;
+        let public_key_id = vault.async_compute_key_id_for_public_key(&public_key).await?;
         let public_key_id = ProfileIdentifier::from_key_id(public_key_id);
 
         let profile = Self::new(
@@ -159,15 +167,28 @@ impl ProfileState {
     }
 }
 
+use ockam_core::async_trait::async_trait;
+#[async_trait]
 impl Identity for ProfileState {
     fn identifier(&self) -> Result<ProfileIdentifier> {
         Ok(self.id.clone())
     }
 
-    fn create_key<S: Into<String>>(&mut self, label: S) -> Result<()> {
+    async fn async_identifier(&self) -> Result<ProfileIdentifier> {
+        Ok(self.id.clone())
+    }
+
+    fn create_key<S: Into<String> + Send + 'static>(&mut self, label: S) -> Result<()> {
         let key_attribs = KeyAttributes::new(label.into());
 
-        let event = { self.create_key(key_attribs, ProfileEventAttributes::new())? };
+        let event = { self.sync_create_key(key_attribs, ProfileEventAttributes::new())? };
+        self.add_change(event)
+    }
+
+    async fn async_create_key<S: Into<String> + Send + 'static>(&mut self, label: S) -> Result<()> {
+        let key_attribs = KeyAttributes::new(label.into());
+
+        let event = { self.async_create_key(key_attribs, ProfileEventAttributes::new()).await? };
         self.add_change(event)
     }
 

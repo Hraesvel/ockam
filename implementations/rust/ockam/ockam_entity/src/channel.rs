@@ -45,7 +45,7 @@ impl<P: Identity + Send + Clone> SecureChannelTrait for P {
         trust_policy: impl TrustPolicy,
         vault: &Address,
     ) -> Result<Address> {
-        let vault = VaultSync::create_with_worker(ctx, vault)?;
+        let vault = VaultSync::async_create_with_worker(ctx, vault).await?;
         SecureChannelWorker::create_initiator(ctx, route, self, trust_policy, vault).await
     }
 
@@ -57,7 +57,7 @@ impl<P: Identity + Send + Clone> SecureChannelTrait for P {
         trust_policy: impl TrustPolicy,
         vault: &Address,
     ) -> Result<()> {
-        let vault = VaultSync::create_with_worker(ctx, vault)?;
+        let vault = VaultSync::async_create_with_worker(ctx, vault).await?;
         let listener = ProfileChannelListener::new(trust_policy, self, vault);
         ctx.start_worker(address, listener).await
     }
